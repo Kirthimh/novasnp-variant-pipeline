@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NovaSNP — Variant Calling Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #060a10;
+    --panel: #0c1220;
+    --border: #1a2840;
+    --accent: #00e5ff;
+    --accent2: #7c3aed;
+    --accent3: #10b981;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --glow: 0 0 20px rgba(0,229,255,0.15);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Space Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── HEADER ── */
+  header {
+    position: relative;
+    z-index: 10;
+    padding: 32px 40px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(180deg, rgba(0,229,255,0.04) 0%, transparent 100%);
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .logo-icon {
+    width: 44px; height: 44px;
+    border: 2px solid var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-size: 18px; font-weight: 800;
+    color: var(--accent);
+    box-shadow: var(--glow);
+    animation: pulse 3s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 10px rgba(0,229,255,0.2); }
+    50% { box-shadow: 0 0 30px rgba(0,229,255,0.5); }
+  }
+  .logo-text h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px; font-weight: 800;
+    letter-spacing: -0.5px;
+    color: #fff;
+  }
+  .logo-text span {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .badge {
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .badge-cyan { border-color: var(--accent); color: var(--accent); background: rgba(0,229,255,0.08); }
+  .header-right { display: flex; gap: 10px; align-items: center; }
+  .author-tag {
+    font-size: 11px; color: var(--muted);
+    border-left: 1px solid var(--border);
+    padding-left: 16px;
+  }
+  .author-tag strong { color: var(--text); display: block; }
+
+  /* ── RUN PANEL ── */
+  .run-section {
+    position: relative; z-index: 10;
+    padding: 28px 40px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  .run-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr) auto;
+    gap: 16px;
+    align-items: end;
+  }
+  .param-group label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .param-group input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    transition: border-color 0.2s;
+    outline: none;
+  }
+  .param-group input:focus { border-color: var(--accent); }
+  .run-btn {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: 6px;
+    padding: 11px 28px;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px; font-weight: 800;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .run-btn:hover { background: #33eaff; transform: translateY(-1px); box-shadow: var(--glow); }
+  .run-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* ── PROGRESS ── */
+  .progress-bar-wrap {
+    margin-top: 16px;
+    background: var(--bg);
+    border-radius: 4px;
+    height: 4px;
+    overflow: hidden;
+    display: none;
+  }
+  .progress-bar-wrap.active { display: block; }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 4px;
+    width: 0%;
+    transition: width 0.4s ease;
+  }
+  .log-line {
+    font-size: 11px; color: var(--muted);
+    margin-top: 10px;
+    min-height: 16px;
+    letter-spacing: 0.5px;
+  }
+  .log-line .step { color: var(--accent); }
+
+  /* ── MAIN CONTENT ── */
+  main {
+    position: relative; z-index: 10;
+    padding: 32px 40px;
+    display: none;
+  }
+  main.visible { display: block; }
+
+  /* ── STAT CARDS ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    animation: fadeUp 0.5s ease both;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--card-color, var(--accent));
+  }
+  .stat-label { font-size: 10px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; margin-bottom: 12px; }
+  .stat-value { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; line-height: 1; }
+  .stat-sub { font-size: 10px; color: var(--muted); margin-top: 6px; }
+
+  /* ── TWO-COLUMN LAYOUT ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+
+  /* ── PANEL ── */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    animation: fadeUp 0.6s ease both;
+  }
+  .panel-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .panel-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .panel-body { padding: 20px; }
+
+  /* ── CHARTS ── */
+  canvas { display: block; }
+
+  /* ── IMPACT BAR ── */
+  .impact-item {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 14px;
+  }
+  .impact-label { font-size: 11px; color: var(--muted); width: 80px; text-transform: uppercase; letter-spacing: 1px; }
+  .impact-bar-bg { flex: 1; background: var(--bg); border-radius: 3px; height: 8px; overflow: hidden; }
+  .impact-bar-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+  .impact-count { font-size: 11px; color: var(--text); width: 30px; text-align: right; }
+
+  /* ── VARIANT TABLE ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    font-weight: 400;
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(26,40,64,0.5);
+    font-size: 11px;
+    vertical-align: middle;
+  }
+  tr:hover td { background: rgba(0,229,255,0.03); }
+  .chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    font-weight: 700;
+  }
+  .chip-pass { background: rgba(16,185,129,0.15); color: var(--accent3); }
+  .chip-low { background: rgba(245,158,11,0.15); color: var(--warn); }
+  .chip-high { background: rgba(239,68,68,0.15); color: var(--danger); }
+  .chip-mod { background: rgba(124,58,237,0.15); color: #a78bfa; }
+  .chip-miss { background: rgba(239,68,68,0.12); color: #fca5a5; }
+  .chip-syn { background: rgba(16,185,129,0.12); color: #6ee7b7; }
+  .chip-inter { background: rgba(100,116,139,0.15); color: var(--muted); }
+  .chip-snp { background: rgba(0,229,255,0.12); color: var(--accent); }
+
+  /* ── DONUT ── */
+  .donut-wrap { display: flex; align-items: center; gap: 20px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; color: var(--muted); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── FOOTER ── */
+  footer {
+    position: relative; z-index: 10;
+    padding: 20px 40px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  @media (max-width: 1200px) {
+    .stats-grid { grid-template-columns: repeat(3, 1fr); }
+    .run-grid { grid-template-columns: repeat(3, 1fr); }
+    .three-col { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">N<span style="color:#7c3aed">S</span></div>
+    <div class="logo-text">
+      <h1>NovaSNP</h1>
+      <span>Variant Calling Pipeline v1.0</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="badge badge-cyan">Interactive Demo</span>
+    <div class="author-tag">
+      <strong>Kirthi M Hangallmath</strong>
+      Genome Analyst · Bioinformatics
+    </div>
+  </div>
+</header>
+
+<div class="run-section">
+  <div class="run-grid">
+    <div class="param-group">
+      <label>Coverage (×)</label>
+      <input type="number" id="coverage" value="30" min="5" max="100"/>
+    </div>
+    <div class="param-group">
+      <label>Genome Length</label>
+      <input type="number" id="genomeLen" value="10000" min="2000" max="50000"/>
+    </div>
+    <div class="param-group">
+      <label>Error Rate</label>
+      <input type="number" id="errorRate" value="0.01" min="0.001" max="0.05" step="0.001"/>
+    </div>
+    <div class="param-group">
+      <label>Min Depth</label>
+      <input type="number" id="minDepth" value="10" min="3" max="50"/>
+    </div>
+    <div class="param-group">
+      <label>Min AF</label>
+      <input type="number" id="minAF" value="0.05" min="0.01" max="0.5" step="0.01"/>
+    </div>
+    <button class="run-btn" id="runBtn" onclick="runPipeline()">▶ RUN PIPELINE</button>
+  </div>
+  <div class="progress-bar-wrap" id="progWrap">
+    <div class="progress-bar" id="progBar"></div>
+  </div>
+  <div class="log-line" id="logLine"></div>
+</div>
+
+<main id="mainContent">
+
+  <div class="stats-grid" id="statsGrid"></div>
+
+  <div class="two-col">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Allele Frequency Distribution</span>
+        <span class="badge badge-cyan">PASS Variants</span>
+      </div>
+      <div class="panel-body">
+        <canvas id="afChart" height="180"></canvas>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Read Depth Distribution</span>
+        <span class="badge badge-cyan">PASS Variants</span>
+      </div>
+      <div class="panel-body">
+        <canvas id="depthChart" height="180"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="three-col">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Filter Status</span>
+      </div>
+      <div class="panel-body">
+        <div class="donut-wrap">
+          <canvas id="filterDonut" width="140" height="140"></canvas>
+          <div id="filterLegend"></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Variant Impact</span>
+      </div>
+      <div class="panel-body" id="impactBars"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Annotation Breakdown</span>
+      </div>
+      <div class="panel-body" id="annotBars"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Variant Table — PASS calls</span>
+      <span class="badge badge-cyan" id="varCount">0 variants</span>
+    </div>
+    <div class="panel-body" style="padding:0">
+      <div class="table-wrap">
+        <table id="varTable">
+          <thead>
+            <tr>
+              <th>CHROM</th><th>POS</th><th>REF</th><th>ALT</th>
+              <th>TYPE</th><th>GENE</th><th>ANNOTATION</th><th>IMPACT</th>
+              <th>ALT DEPTH</th><th>TOTAL DEPTH</th><th>AF</th><th>FILTER</th>
+            </tr>
+          </thead>
+          <tbody id="varBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <span>NovaSNP Pipeline · Genome Analysis · Bioinformatics &amp; Computational Biology</span>
+  <span><a href="#">github.com/kirthi-m-hangallmath</a> · Bengaluru, Karnataka</span>
+</footer>
+
+<script>
+// ════════════════════════════════════════════════════════
+// PURE-JS VARIANT CALLING PIPELINE (browser simulation)
+// ════════════════════════════════════════════════════════
+
+const GENES = [
+  {name:"BRCA1", start:500,  end:1500},
+  {name:"TP53",  start:2000, end:3000},
+  {name:"KRAS",  start:4000, end:4800},
+  {name:"EGFR",  start:6000, end:7200},
+  {name:"PIK3CA",start:8000, end:9000},
+];
+const BASES = ['A','T','G','C'];
+
+function seededRand(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return (s >>> 0) / 0xffffffff;
+  };
+}
+
+function randChoice(arr, rng) { return arr[Math.floor(rng() * arr.length)]; }
+function randInt(min, max, rng) { return Math.floor(rng() * (max - min + 1)) + min; }
+
+function generateReference(length, seed) {
+  const rng = seededRand(seed);
+  let seq = '';
+  for (let i = 0; i < length; i++) {
+    const r = rng();
+    seq += r < 0.30 ? 'A' : r < 0.60 ? 'T' : r < 0.80 ? 'G' : 'C';
+  }
+  return seq;
+}
+
+function injectVariants(refSeq, variantRate, seed) {
+  const rng = seededRand(seed);
+  const trueVars = {};
+  const n = Math.floor(refSeq.length * variantRate);
+  const positions = new Set();
+  while (positions.size < n) positions.add(randInt(50, refSeq.length - 50, rng));
+  positions.forEach(pos => {
+    const ref = refSeq[pos];
+    const alts = BASES.filter(b => b !== ref);
+    trueVars[pos] = [ref, alts[Math.floor(rng() * alts.length)]];
+  });
+  return trueVars;
+}
+
+function buildPileup(refSeq, coverage, readLen, errorRate, trueVars, seed) {
+  const rng = seededRand(seed);
+  const pileup = {};
+  for (let i = 0; i < refSeq.length; i++) pileup[i] = {bases:[], quals:[]};
+  const nReads = Math.floor(refSeq.length * coverage / readLen);
+  for (let r = 0; r < nReads; r++) {
+    const start = randInt(0, refSeq.length - readLen, rng);
+    for (let i = 0; i < readLen; i++) {
+      const pos = start + i;
+      if (pos >= refSeq.length) break;
+      let base = refSeq[pos];
+      let q = randInt(25, 40, rng);
+      if (trueVars[pos]) {
+        base = trueVars[pos][1];
+        q = randInt(28, 40, rng);
+      } else if (rng() < errorRate) {
+        base = randChoice(BASES.filter(b => b !== base), rng);
+        q = randInt(10, 20, rng);
+      }
+      pileup[pos].bases.push(base);
+      pileup[pos].quals.push(q);
+    }
+  }
+  return pileup;
+}
+
+function getGene(pos, maxLen) {
+  const genes = GENES.filter(g => g.end <= maxLen);
+  const g = genes.find(g => pos >= g.start && pos <= g.end);
+  return g ? g.name : null;
+}
+
+function annotate(pos, ref, alt) {
+  const transitions = new Set(['AG','GA','CT','TC']);
+  const key = ref+alt;
+  const isTransition = transitions.has(key);
+  const codonPos = pos % 3;
+  if (codonPos === 2) return ['Synonymous', 'LOW'];
+  if (!isTransition) return ['Nonsense', 'HIGH'];
+  return ['Missense', 'MODERATE'];
+}
+
+function callVariants(refSeq, pileup, minDepth, minAF, minBQ) {
+  const variants = [];
+  for (let pos = 0; pos < refSeq.length; pos++) {
+    const data = pileup[pos];
+    if (!data || data.bases.length === 0) continue;
+    const refBase = refSeq[pos];
+    const filtered = data.bases.map((b,i) => [b, data.quals[i]]).filter(([,q]) => q >= minBQ);
+    if (filtered.length === 0) continue;
+    const counts = {};
+    filtered.forEach(([b]) => counts[b] = (counts[b]||0)+1);
+    const totalDepth = data.bases.length;
+    const refCount = counts[refBase] || 0;
+    for (const [altBase, altCount] of Object.entries(counts)) {
+      if (altBase === refBase || altBase === 'N') continue;
+      const af = altCount / totalDepth;
+      const altQuals = filtered.filter(([b]) => b === altBase).map(([,q]) => q);
+      const meanBQ = altQuals.reduce((a,b)=>a+b,0) / (altQuals.length || 1);
+      let filt = 'PASS';
+      if (totalDepth < minDepth) filt = 'LowDepth';
+      else if (altCount < 3) filt = 'LowAltDepth';
+      else if (af < minAF) filt = 'LowAF';
+      else if (meanBQ < minBQ) filt = 'LowQual';
+      const gene = getGene(pos, refSeq.length);
+      const [ann, impact] = gene ? annotate(pos, refBase, altBase) : ['Intergenic', 'MODIFIER'];
+      variants.push({
+        chrom:'chr1', pos:pos+1, ref:refBase, alt:altBase,
+        type:'SNP', gene: gene||'—', annotation:ann, impact,
+        refDepth:refCount, altDepth:altCount, totalDepth, af:+af.toFixed(4),
+        meanBQ:+meanBQ.toFixed(1), filter:filt
+      });
+    }
+  }
+  return variants;
+}
+
+// ═══════════ PIPELINE RUNNER ═══════════
+
+async function runPipeline() {
+  const btn = document.getElementById('runBtn');
+  const progWrap = document.getElementById('progWrap');
+  const progBar = document.getElementById('progBar');
+  const logLine = document.getElementById('logLine');
+
+  btn.disabled = true;
+  progWrap.classList.add('active');
+  document.getElementById('mainContent').classList.remove('visible');
+
+  const coverage = +document.getElementById('coverage').value;
+  const genomeLen = +document.getElementById('genomeLen').value;
+  const errorRate = +document.getElementById('errorRate').value;
+  const minDepth = +document.getElementById('minDepth').value;
+  const minAF = +document.getElementById('minAF').value;
+
+  const steps = [
+    [10, 'Generating reference genome…'],
+    [25, 'Injecting true variants…'],
+    [45, 'Simulating NGS reads…'],
+    [65, 'Building pileup from aligned reads…'],
+    [82, 'Calling variants with quality filters…'],
+    [95, 'Computing QC statistics & rendering…'],
+    [100, 'Pipeline complete ✓'],
+  ];
+
+  for (const [pct, msg] of steps) {
+    progBar.style.width = pct + '%';
+    logLine.innerHTML = `<span class="step">[NovaSNP]</span> ${msg}`;
+    await new Promise(r => setTimeout(r, 350));
+  }
+
+  // Run pipeline
+  const refSeq = generateReference(genomeLen, 42);
+  const trueVars = injectVariants(refSeq, 0.005, 77);
+  const pileup = buildPileup(refSeq, coverage, 150, errorRate, trueVars, 99);
+  const allVariants = callVariants(refSeq, pileup, minDepth, minAF, 20);
+  const passVariants = allVariants.filter(v => v.filter === 'PASS');
+
+  // QC stats
+  const truePositions = new Set(Object.keys(trueVars).map(Number));
+  const calledPositions = new Set(passVariants.map(v => v.pos - 1));
+  const tp = [...truePositions].filter(p => calledPositions.has(p)).length;
+  const sensitivity = tp / (truePositions.size || 1);
+  const meanAF = passVariants.length ? passVariants.reduce((a,v)=>a+v.af,0)/passVariants.length : 0;
+  const meanDP = passVariants.length ? passVariants.reduce((a,v)=>a+v.totalDepth,0)/passVariants.length : 0;
+
+  renderStats({allVariants, passVariants, trueVars, sensitivity, meanAF, meanDP});
+  renderCharts(allVariants, passVariants);
+  renderTable(passVariants);
+
+  document.getElementById('mainContent').classList.add('visible');
+  btn.disabled = false;
+}
+
+// ═══════════ RENDER STATS ═══════════
+
+function renderStats({allVariants, passVariants, trueVars, sensitivity, meanAF, meanDP}) {
+  const cards = [
+    {label:'PASS Variants', value: passVariants.length, sub:'Quality-filtered calls', color:'#00e5ff'},
+    {label:'Total Called', value: allVariants.length, sub:'All candidates', color:'#7c3aed'},
+    {label:'Sensitivity', value: (sensitivity*100).toFixed(1)+'%', sub:`${Object.keys(trueVars).length} true variants`, color:'#10b981'},
+    {label:'Mean Depth', value: meanDP.toFixed(0)+'×', sub:'Coverage at PASS sites', color:'#f59e0b'},
+    {label:'Mean AF', value: meanAF.toFixed(3), sub:'Avg allele frequency', color:'#ec4899'},
+    {label:'Genes Hit', value: new Set(passVariants.filter(v=>v.gene!=='—').map(v=>v.gene)).size, sub:'Annotated genes', color:'#06b6d4'},
+  ];
+  const grid = document.getElementById('statsGrid');
+  grid.innerHTML = cards.map((c,i) =>
+    `<div class="stat-card" style="--card-color:${c.color};animation-delay:${i*0.07}s">
+      <div class="stat-label">${c.label}</div>
+      <div class="stat-value" style="color:${c.color}">${c.value}</div>
+      <div class="stat-sub">${c.sub}</div>
+    </div>`
+  ).join('');
+}
+
+// ═══════════ CHARTS ═══════════
+
+function renderCharts(allVariants, passVariants) {
+  // AF histogram
+  renderBar('afChart',
+    passVariants.map(v => v.af),
+    'AF', [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
+    '#00e5ff', 'Allele Frequency'
+  );
+  // Depth histogram
+  renderBar('depthChart',
+    passVariants.map(v => v.totalDepth),
+    'Depth', null,
+    '#7c3aed', 'Read Depth'
+  );
+
+  // Filter donut
+  const filterCounts = {};
+  allVariants.forEach(v => filterCounts[v.filter] = (filterCounts[v.filter]||0)+1);
+  renderDonut('filterDonut', filterCounts, 'filterLegend');
+
+  // Impact bars
+  const impactCounts = {};
+  passVariants.forEach(v => impactCounts[v.impact] = (impactCounts[v.impact]||0)+1);
+  renderBars('impactBars', impactCounts, {HIGH:'#ef4444',MODERATE:'#7c3aed',LOW:'#10b981',MODIFIER:'#64748b'});
+
+  // Annotation bars
+  const annotCounts = {};
+  passVariants.forEach(v => annotCounts[v.annotation] = (annotCounts[v.annotation]||0)+1);
+  renderBars('annotBars', annotCounts, {Missense:'#7c3aed',Nonsense:'#ef4444',Synonymous:'#10b981',Intergenic:'#64748b'});
+}
+
+function renderBar(canvasId, values, label, bins, color, xLabel) {
+  const canvas = document.getElementById(canvasId);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.parentElement.clientWidth - 40;
+  const H = 180;
+  canvas.width = W; canvas.height = H;
+
+  // Bin data
+  const nBins = 12;
+  if (!values.length) return;
+  const min = Math.min(...values), max = Math.max(...values);
+  const binSize = (max - min) / nBins || 1;
+  const counts = new Array(nBins).fill(0);
+  values.forEach(v => {
+    const bi = Math.min(Math.floor((v - min) / binSize), nBins - 1);
+    counts[bi]++;
+  });
+  const maxCount = Math.max(...counts);
+
+  const pad = {l:36, r:10, t:10, b:30};
+  const bW = (W - pad.l - pad.r) / nBins;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#060a10';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid lines
+  ctx.strokeStyle = '#1a2840'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + (H - pad.t - pad.b) * i / 4;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+  }
+
+  // Bars
+  counts.forEach((count, i) => {
+    const barH = count / (maxCount || 1) * (H - pad.t - pad.b);
+    const x = pad.l + i * bW;
+    const y = H - pad.b - barH;
+    const grad = ctx.createLinearGradient(0, y, 0, H - pad.b);
+    grad.addColorStop(0, color);
+    grad.addColorStop(1, color + '33');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x + 2, y, bW - 4, barH);
+  });
+
+  // X labels
+  ctx.fillStyle = '#64748b'; ctx.font = '10px Space Mono'; ctx.textAlign = 'center';
+  [0, 0.25, 0.5, 0.75, 1].forEach(t => {
+    const x = pad.l + t * (W - pad.l - pad.r);
+    const v = (min + t * (max - min)).toFixed(label==='Depth'?0:2);
+    ctx.fillText(v, x, H - 8);
+  });
+}
+
+function renderDonut(canvasId, counts, legendId) {
+  const canvas = document.getElementById(canvasId);
+  const ctx = canvas.getContext('2d');
+  const colors = {PASS:'#10b981',LowDepth:'#f59e0b',LowAF:'#ef4444',LowAltDepth:'#7c3aed',LowQual:'#64748b'};
+  const total = Object.values(counts).reduce((a,b)=>a+b,0);
+  let angle = -Math.PI/2;
+  const cx = 70, cy = 70, R = 55, r = 32;
+  ctx.clearRect(0,0,140,140);
+  Object.entries(counts).forEach(([label, count]) => {
+    const slice = (count/total) * 2 * Math.PI;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, R, angle, angle+slice);
+    ctx.closePath();
+    ctx.fillStyle = colors[label]||'#444';
+    ctx.fill();
+    angle += slice;
+  });
+  // Donut hole
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
+  ctx.fillStyle = '#0c1220'; ctx.fill();
+  // Center text
+  ctx.fillStyle = '#e2e8f0'; ctx.font = 'bold 18px Syne'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(total, cx, cy-6);
+  ctx.fillStyle='#64748b'; ctx.font='9px Space Mono'; ctx.fillText('TOTAL', cx, cy+10);
+
+  // Legend
+  const legend = document.getElementById(legendId);
+  legend.innerHTML = Object.entries(counts).map(([label,count]) =>
+    `<div class="legend-item">
+      <div class="legend-dot" style="background:${colors[label]||'#444'}"></div>
+      <span>${label}</span>
+      <span style="color:#e2e8f0;margin-left:auto;padding-left:8px">${count}</span>
+    </div>`
+  ).join('');
+}
+
+function renderBars(containerId, counts, colors) {
+  const total = Math.max(...Object.values(counts), 1);
+  const el = document.getElementById(containerId);
+  el.innerHTML = Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([label,count]) =>
+    `<div class="impact-item">
+      <span class="impact-label">${label}</span>
+      <div class="impact-bar-bg">
+        <div class="impact-bar-fill" style="width:${count/total*100}%;background:${colors[label]||'#64748b'}"></div>
+      </div>
+      <span class="impact-count">${count}</span>
+    </div>`
+  ).join('');
+}
+
+// ═══════════ TABLE ═══════════
+
+function renderTable(passVariants) {
+  const impactChip = {HIGH:'chip-high',MODERATE:'chip-mod',LOW:'chip-syn',MODIFIER:'chip-inter'};
+  const annChip = {Missense:'chip-miss',Nonsense:'chip-high',Synonymous:'chip-syn',Intergenic:'chip-inter'};
+  const body = document.getElementById('varBody');
+  const show = passVariants.slice(0,50);
+  body.innerHTML = show.map(v =>
+    `<tr>
+      <td style="color:#00e5ff">${v.chrom}</td>
+      <td style="color:#e2e8f0">${v.pos.toLocaleString()}</td>
+      <td><span style="color:#ef4444;font-weight:700">${v.ref}</span></td>
+      <td><span style="color:#10b981;font-weight:700">${v.alt}</span></td>
+      <td><span class="chip chip-snp">${v.type}</span></td>
+      <td style="color:#a78bfa">${v.gene}</td>
+      <td><span class="chip ${annChip[v.annotation]||'chip-inter'}">${v.annotation}</span></td>
+      <td><span class="chip ${impactChip[v.impact]||'chip-inter'}">${v.impact}</span></td>
+      <td>${v.altDepth}</td>
+      <td>${v.totalDepth}</td>
+      <td style="color:#f59e0b">${v.af}</td>
+      <td><span class="chip chip-pass">PASS</span></td>
+    </tr>`
+  ).join('');
+  document.getElementById('varCount').textContent = passVariants.length + ' variants';
+}
+
+// Auto-run on load
+window.addEventListener('load', () => runPipeline());
+</script>
+</body>
+</html>
